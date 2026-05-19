@@ -2,7 +2,7 @@
 
 A fully playable, zero-dependency chess engine built entirely in vanilla HTML, CSS, and JavaScript. No frameworks. No build step. No server. One file.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Site-4a7c59?style=for-the-badge)](https://your-username.github.io/chess)
+[![Live Demo](https://omnibarry-chesshub-now.vercel.app/)](https://AndreOmniBarry.github.io/OmniBarry -ChessHub)
 
 
 ## Preview
