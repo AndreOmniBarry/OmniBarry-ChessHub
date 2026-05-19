@@ -125,6 +125,19 @@ That is the entire setup process.
 - [ ] Move timer / clock mode
 - [ ] PGN export of completed games
 - [ ] Puzzle mode
+- [ ] Roadmap suggestions further
+- [ ] Roadmap suggestions (since you listed some)
+- [ ] Depth levels (1/3/5) — huge for accessibility.
+- [ ] Flip board (play as Black).
+- [ ] Quiescence search (huge Elo gain for tactics).
+- [ ] Simple transposition table.
+- [ ] Adjustable time or iterative deepening;
+
+Depth levels (1/3/5) — huge for accessibility.
+Flip board (play as Black).
+Quiescence search (huge Elo gain for tactics).
+Simple transposition table.
+Adjustable time or iterative deepening.
 
 ---
 
