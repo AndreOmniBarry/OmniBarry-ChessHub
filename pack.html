@@ -2,27 +2,22 @@
 <html lang="en">
 <!--
   ============================================================
-  OMNIBARRY CHESS APP — Single-file vanilla JS chess engine + UI
+  OMNIBARRY CHESS HUB — Single-file vanilla JS chess engine
   ============================================================
   Architecture:
   - Board: 8x8 array of piece objects (null = empty square)
-  - Move generation: per-piece pseudo-legal + check filtering
-  - Special rules: castling, en passant, pawn promotion
-  - Check/checkmate/stalemate detection via isInCheck()
-  - AI: minimax + alpha-beta pruning (depth 3) + PST eval
-  - UI: DOM-based board rendering, click-to-move interaction
-  - Modes: Player vs Player | Player vs AI (Black)
+  - Move generation: pseudo-legal per piece + check filtering
+  - Special rules: castling (fixed), en passant, promotion
+  - Check / checkmate / stalemate detection
+  - AI: minimax + alpha-beta + quiescence + difficulty + personality
+  - Flip board: play as Black against AI
+  - UI: DOM rendering, click-to-move, full responsive layout
   ============================================================
 -->
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>OmniBarry Chess Hub</title>
-
-<!-- ============================================================
-     SECTION 2: CSS STYLES
-     Board, pieces, highlights, modal, sidebar, responsive
-     ============================================================ -->
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -42,7 +37,6 @@
     --text2:     #a0a0b0;
     --border:    rgba(255,255,255,0.08);
     --sq: min(8.5vw, 72px);
-    --sidebar-w: 220px;
   }
 
   body {
@@ -92,9 +86,7 @@
     margin-left: 18px;
   }
   .file-label { font-size: 11px; color: var(--text2); width: var(--sq); text-align: center; }
-
   #board-row { display: flex; align-items: center; gap: 4px; }
-
   .rank-labels { display: flex; flex-direction: column; height: calc(var(--sq)*8); justify-content: space-around; }
   .coord-label {
     font-size: 11px; color: var(--text2);
@@ -119,76 +111,46 @@
     transition: filter 0.1s; color: black;
   }
   .sq.light { background: var(--light-sq); }
-  .sq.dark  { background: var(--dark-sq);  }
+  .sq.dark  { background: var(--dark-sq); }
   .sq:hover { filter: brightness(1.08); }
-
   .sq.selected   { background: rgba(20,85,200,0.50) !important; }
   .sq.last-from,
   .sq.last-to    { background-color: var(--last-move) !important; }
-  .sq.in-check   {
-    background: var(--check-sq) !important;
-    animation: pulseCheck 0.8s ease-in-out infinite alternate;
-  }
+  .sq.in-check   { background: var(--check-sq) !important; animation: pulseCheck 0.8s ease-in-out infinite alternate; }
   @keyframes pulseCheck {
     from { background: rgba(220,20,20,0.42); }
     to   { background: rgba(220,20,20,0.72); }
   }
-
   .sq.legal::after {
-    content: '';
-    position: absolute;
+    content: ''; position: absolute;
     width: 30%; height: 30%;
-    border-radius: 50%;
-    background: var(--legal-dot);
-    pointer-events: none;
-    z-index: 2;
+    border-radius: 50%; background: var(--legal-dot);
+    pointer-events: none; z-index: 2;
   }
   .sq.legal.has-piece::after {
     width: 90%; height: 90%;
-    border-radius: 50%;
-    background: transparent;
-    border: 5px solid var(--legal-cap);
-    box-sizing: border-box;
+    border-radius: 50%; background: transparent;
+    border: 5px solid var(--legal-cap); box-sizing: border-box;
   }
-
   .piece {
     font-size: calc(var(--sq) * 0.82);
-    line-height: 1;
-    pointer-events: none;
+    line-height: 1; pointer-events: none;
     text-shadow: 0 1px 3px rgba(0,0,0,0.35);
-    position: relative; z-index: 1;
-    transition: transform 0.1s;
+    position: relative; z-index: 1; transition: transform 0.1s;
   }
   .sq:active .piece { transform: scale(0.93); }
 
   /* ── Sidebar ── */
   #sidebar { display: flex; flex-direction: column; gap: 10px; width: 220px; min-width: 180px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .panel-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text2); margin-bottom: 8px; }
 
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-  }
-  .panel-title {
-    font-size: 10px; text-transform: uppercase;
-    letter-spacing: 0.12em; color: var(--text2); margin-bottom: 8px;
-  }
-
-  #status-text {
-    font-family: Georgia, serif; font-size: 15px; color: var(--light-sq); min-height: 20px;
-  }
+  #status-text { font-family: Georgia, serif; font-size: 15px; color: var(--light-sq); min-height: 20px; }
   #turn-indicator { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-  #turn-dot {
-    width: 12px; height: 12px; border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.3); transition: background 0.3s;
-  }
+  #turn-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); transition: background 0.3s; }
   #turn-label { font-size: 13px; color: var(--text2); }
 
-  #mode-toggle {
-    display: flex; background: var(--panel2);
-    border-radius: 6px; overflow: hidden; border: 1px solid var(--border);
-  }
+  #mode-toggle { display: flex; background: var(--panel2); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
   .mode-btn {
     flex: 1; padding: 7px 4px; font-size: 12px;
     border: none; background: transparent; color: var(--text2);
@@ -196,6 +158,34 @@
   }
   .mode-btn.active { background: var(--accent); color: #fff; }
   .mode-btn:hover:not(.active) { background: rgba(255,255,255,0.06); color: var(--text); }
+
+  /* ── Difficulty selector ── */
+  #diff-toggle {
+    display: grid; grid-template-columns: repeat(4,1fr);
+    border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border); background: var(--panel2); gap: 1px;
+  }
+  .diff-btn {
+    padding: 7px 2px; font-size: 11px; border: none;
+    background: transparent; color: var(--text2);
+    cursor: pointer; transition: background 0.2s, color 0.2s;
+    text-align: center; font-family: inherit;
+  }
+  .diff-btn:hover:not(.active) { background: rgba(255,255,255,0.06); color: var(--text); }
+  .diff-btn.active { background: var(--accent); color: #fff; }
+  .diff-btn.gopro  { color: #a78bfa; }
+  .diff-btn.gopro.active { background: linear-gradient(135deg,#7c3aed,#4c1d95); color: #fff; }
+  #diff-desc { font-size: 11px; color: var(--text2); margin-top: 6px; line-height: 1.5; }
+  #difficulty-panel { display: none; }
+  #difficulty-panel.visible { display: block; }
+
+  /* ── Flip board indicator ── */
+  #playing-as {
+    font-size: 11px; color: var(--text2); margin-top: 6px;
+    display: none;
+  }
+  #playing-as.visible { display: block; }
+  #playing-as span { color: var(--light-sq); font-weight: 600; }
 
   .btn {
     width: 100%; padding: 9px 12px; border-radius: 6px;
@@ -207,6 +197,7 @@
   .btn:active { transform: scale(0.97); }
   .btn.primary { background: var(--accent); border-color: var(--accent2); }
   .btn.primary:hover { background: var(--accent2); }
+  .btn.flip-active { background: var(--panel2); border-color: #a78bfa; color: #a78bfa; }
 
   #captured-white, #captured-black {
     font-size: calc(var(--sq)*0.34); line-height: 1.3;
@@ -214,229 +205,115 @@
   }
   .adv-label { font-size: 11px; color: var(--accent); font-weight: 600; margin-left: 4px; }
 
-  #history-box {
-    max-height: 200px; overflow-y: auto;
-    scrollbar-width: thin; scrollbar-color: var(--accent) transparent;
-  }
+  #history-box { max-height: 200px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
   #history-box::-webkit-scrollbar { width: 4px; }
   #history-box::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
-
-  #move-history {
-    display: grid; grid-template-columns: 28px 1fr 1fr;
-    gap: 1px 4px; font-size: 12px; font-family: 'Courier New', monospace;
-  }
+  #move-history { display: grid; grid-template-columns: 28px 1fr 1fr; gap: 1px 4px; font-size: 12px; font-family: 'Courier New', monospace; }
   .hist-num  { color: var(--text2); padding: 2px 0; }
   .hist-move { color: var(--text); padding: 2px 4px; border-radius: 3px; }
   .hist-move.latest { background: rgba(74,124,89,0.4); color: #fff; }
 
-  #ai-thinking {
-    display: none; align-items: center; gap: 8px;
-    font-size: 12px; color: var(--text2); padding: 6px 0;
-  }
+  #ai-thinking { display: none; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); padding: 6px 0; }
   #ai-thinking.show { display: flex; }
   .dot-pulse { display: flex; gap: 3px; }
-  .dot-pulse span {
-    width: 5px; height: 5px; border-radius: 50%;
-    background: var(--accent);
-    animation: dotBounce 1.2s infinite ease-in-out;
-  }
+  .dot-pulse span { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: dotBounce 1.2s infinite ease-in-out; }
   .dot-pulse span:nth-child(2) { animation-delay: 0.2s; }
   .dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes dotBounce {
-    0%,80%,100% { transform: scale(0.7); opacity: 0.5; }
-    40%         { transform: scale(1.1); opacity: 1; }
-  }
+  @keyframes dotBounce { 0%,80%,100%{transform:scale(0.7);opacity:0.5;} 40%{transform:scale(1.1);opacity:1;} }
 
   /* ── Promotion modal ── */
-  #promo-overlay {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.78); z-index: 1000;
-    align-items: center; justify-content: center;
-  }
+  #promo-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 1000; align-items: center; justify-content: center; }
   #promo-overlay.show { display: flex; }
-  #promo-modal {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 24px; text-align: center;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.7);
-  }
-  #promo-modal h3 {
-    font-family: Georgia, serif; font-size: 18px;
-    color: var(--light-sq); margin-bottom: 16px; font-weight: 400;
-  }
+  #promo-modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: center; box-shadow: 0 16px 48px rgba(0,0,0,0.7); }
+  #promo-modal h3 { font-family: Georgia, serif; font-size: 18px; color: var(--light-sq); margin-bottom: 16px; font-weight: 400; }
   #promo-choices { display: flex; gap: 12px; justify-content: center; }
-  .promo-piece {
-    font-size: 52px; line-height: 1; cursor: pointer; padding: 10px;
-    border-radius: 8px; border: 2px solid transparent;
-    transition: border-color 0.15s, background 0.15s, transform 0.1s;
-    background: var(--panel2);
-  }
+  .promo-piece { font-size: 52px; line-height: 1; cursor: pointer; padding: 10px; border-radius: 8px; border: 2px solid transparent; transition: border-color 0.15s, background 0.15s, transform 0.1s; background: var(--panel2); }
   .promo-piece:hover  { border-color: var(--accent); background: rgba(74,124,89,0.2); transform: scale(1.1); }
   .promo-piece:active { transform: scale(0.95); }
 
-  /* ═══════════════════════════════════════════════════════════
-     RESPONSIVE SYSTEM — covers every device ever made
-     Breakpoints (width-based, board-first):
-       < 360px  → micro phones (Galaxy Fold closed, older budget)
-       360–480  → standard phones portrait
-       480–600  → large phones / small phones landscape
-       600–768  → phablets, phones landscape
-       768–1024 → tablets portrait
-       1024–1280→ tablets landscape / small laptops
-       1280–1440→ laptops
-       1440+    → desktops / large screens
-     Strategy: --sq drives everything. Board always fits the
-     viewport. Sidebar flows below on mobile, beside on desktop.
-  ═══════════════════════════════════════════════════════════ */
-
-  /* ── Micro phones (Galaxy Fold closed, 280–359px) ── */
+  /* ══════════════════════════════════════════════════
+     RESPONSIVE — every screen from 280px to 4K
+  ══════════════════════════════════════════════════ */
   @media (max-width: 359px) {
     :root { --sq: min(10.8vw, 36px); }
-    body  { padding: 6px 4px; gap: 6px; }
-    header h1 { font-size: 16px; }
-    header p  { display: none; }
+    body { padding: 6px 4px; gap: 6px; }
+    header h1 { font-size: 16px; } header p { display: none; }
     #app { flex-direction: column; align-items: center; gap: 8px; }
     #sidebar { width: 100%; flex-direction: column; gap: 6px; }
-    .panel { padding: 8px 10px; }
-    .panel-title { font-size: 9px; margin-bottom: 4px; }
-    #status-text { font-size: 13px; }
-    #mode-toggle .mode-btn { font-size: 10px; padding: 6px 2px; }
-    .btn { font-size: 11px; padding: 7px 8px; }
-    #history-box { max-height: 80px; }
-    #move-history { font-size: 10px; }
-    .file-labels { margin-left: 16px; }
+    .panel { padding: 8px 10px; } .panel-title { font-size: 9px; margin-bottom: 4px; }
+    #status-text { font-size: 13px; } .mode-btn { font-size: 10px; padding: 6px 2px; }
+    .btn { font-size: 11px; padding: 7px 8px; } #history-box { max-height: 80px; }
+    #move-history { font-size: 10px; } .file-labels { margin-left: 16px; }
     .file-label, .coord-label { font-size: 9px; width: 10px; }
-    .promo-piece { font-size: 36px; padding: 6px; }
-    #promo-choices { gap: 6px; }
+    .promo-piece { font-size: 36px; padding: 6px; } #promo-choices { gap: 6px; }
   }
-
-  /* ── Standard phones portrait (360–479px) ── */
   @media (min-width: 360px) and (max-width: 479px) {
     :root { --sq: min(11vw, 46px); }
-    body  { padding: 8px 6px; gap: 8px; }
-    header h1 { font-size: 18px; }
-    header p  { font-size: 10px; }
+    body { padding: 8px 6px; gap: 8px; }
+    header h1 { font-size: 18px; } header p { font-size: 10px; }
     #app { flex-direction: column; align-items: center; gap: 10px; }
     #sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 8px; }
     .panel { flex: 1 1 calc(50% - 4px); min-width: 140px; padding: 10px 12px; }
-    #history-box { max-height: 100px; }
-    .file-labels { margin-left: 18px; }
+    #history-box { max-height: 100px; } .file-labels { margin-left: 18px; }
     .promo-piece { font-size: 42px; padding: 8px; }
   }
-
-  /* ── Large phones portrait / small landscape (480–599px) ── */
   @media (min-width: 480px) and (max-width: 599px) {
     :root { --sq: min(10.5vw, 54px); }
-    body  { padding: 10px 8px; gap: 10px; }
+    body { padding: 10px 8px; gap: 10px; }
     #app { flex-direction: column; align-items: center; gap: 12px; }
     #sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 8px; }
     .panel { flex: 1 1 calc(50% - 4px); min-width: 150px; }
-    #history-box { max-height: 110px; }
-    .file-labels { margin-left: 18px; }
+    #history-box { max-height: 110px; } .file-labels { margin-left: 18px; }
   }
-
-  /* ── Phones landscape / phablets (600–767px) ── */
   @media (min-width: 600px) and (max-width: 767px) {
     :root { --sq: min(8vw, 60px); }
-    body  { padding: 8px; gap: 8px; }
-    header h1 { font-size: 20px; }
-    #app {
-      flex-direction: row;
-      align-items: flex-start;
-      flex-wrap: nowrap;
-      gap: 12px;
-    }
-    #sidebar {
-      width: 180px;
-      min-width: 160px;
-      flex-shrink: 0;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .panel { padding: 10px 12px; }
-    #history-box { max-height: 120px; }
-    /* Board must not overflow viewport height in landscape */
+    body { padding: 8px; gap: 8px; } header h1 { font-size: 20px; }
+    #app { flex-direction: row; align-items: flex-start; flex-wrap: nowrap; gap: 12px; }
+    #sidebar { width: 180px; min-width: 160px; flex-shrink: 0; flex-direction: column; gap: 8px; }
+    .panel { padding: 10px 12px; } #history-box { max-height: 120px; }
     #board-area { max-height: 98vh; justify-content: center; }
   }
-
-  /* ── Tablets portrait (768–1023px) ── */
   @media (min-width: 768px) and (max-width: 1023px) {
     :root { --sq: min(9vw, 72px); }
-    body  { padding: 16px 12px; gap: 14px; }
-    #app {
-      flex-direction: row;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      gap: 16px;
-      max-width: 800px;
-    }
-    #sidebar { width: 200px; min-width: 180px; }
-    #history-box { max-height: 180px; }
+    body { padding: 16px 12px; gap: 14px; }
+    #app { flex-direction: row; align-items: flex-start; flex-wrap: wrap; gap: 16px; max-width: 800px; }
+    #sidebar { width: 200px; min-width: 180px; } #history-box { max-height: 180px; }
   }
-
-  /* ── Tablets landscape / small laptops (1024–1279px) ── */
   @media (min-width: 1024px) and (max-width: 1279px) {
     :root { --sq: min(7.5vw, 72px); }
     #app { flex-direction: row; flex-wrap: nowrap; gap: 20px; max-width: 960px; }
-    #sidebar { width: 210px; }
-    #history-box { max-height: 200px; }
+    #sidebar { width: 210px; } #history-box { max-height: 200px; }
   }
-
-  /* ── Laptops (1280–1439px) ── */
   @media (min-width: 1280px) and (max-width: 1439px) {
     :root { --sq: 76px; }
     #app { flex-direction: row; flex-wrap: nowrap; gap: 24px; max-width: 1100px; }
-    #sidebar { width: 230px; }
-    #history-box { max-height: 220px; }
+    #sidebar { width: 230px; } #history-box { max-height: 220px; }
   }
-
-  /* ── Desktops & large screens (1440px+) ── */
   @media (min-width: 1440px) {
     :root { --sq: 80px; }
-    body  { padding: 24px 16px; }
+    body { padding: 24px 16px; }
     #app { flex-direction: row; flex-wrap: nowrap; gap: 28px; max-width: 1200px; }
-    #sidebar { width: 240px; }
-    #history-box { max-height: 260px; }
+    #sidebar { width: 240px; } #history-box { max-height: 260px; }
     header h1 { font-size: 34px; }
   }
-
-  /* ── Landscape orientation safety net for all phones ──
-     Catches any phone rotated sideways that slipped through
-     the width-only breakpoints above. Forces board to fit height. */
   @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
     :root { --sq: min(10.5vh, 52px); }
-    body  { padding: 4px 6px; gap: 4px; flex-direction: row; align-items: flex-start; }
+    body { padding: 4px 6px; gap: 4px; flex-direction: row; align-items: flex-start; }
     header { display: none; }
     #app { flex-direction: row; flex-wrap: nowrap; gap: 8px; align-items: flex-start; }
-    #sidebar {
-      width: 160px;
-      min-width: 140px;
-      flex-shrink: 0;
-      gap: 6px;
-      flex-direction: column;
-      max-height: 98vh;
-      overflow-y: auto;
-    }
-    .panel { padding: 8px 10px; }
-    .panel-title { font-size: 9px; margin-bottom: 4px; }
-    #history-box { max-height: 80px; }
-    .file-labels { margin-left: 16px; }
+    #sidebar { width: 160px; min-width: 140px; flex-shrink: 0; gap: 6px; flex-direction: column; max-height: 98vh; overflow-y: auto; }
+    .panel { padding: 8px 10px; } .panel-title { font-size: 9px; margin-bottom: 4px; }
+    #history-box { max-height: 80px; } .file-labels { margin-left: 16px; }
   }
-
-  /* ── Touch targets: minimum 44px hit area on all tap elements ── */
   @media (pointer: coarse) {
     .sq { min-width: 36px; min-height: 36px; }
-    .btn { min-height: 44px; }
-    .mode-btn { min-height: 40px; }
+    .btn { min-height: 44px; } .mode-btn { min-height: 40px; }
     .promo-piece { min-width: 52px; min-height: 52px; }
   }
 </style>
 </head>
 <body>
 
-<!-- ============================================================
-     SECTION 1: HTML MARKUP
-     Header, board with coordinate labels, sidebar, promo modal
-     ============================================================ -->
 <header>
   <h1>&#9823; OmniBarry ChessHub</h1>
   <p>Vanilla JS &middot; Full FIDE Rules &middot; 0 Chess Libraries</p>
@@ -463,6 +340,17 @@
       </div>
     </div>
 
+    <div class="panel" id="difficulty-panel">
+      <div class="panel-title">Difficulty</div>
+      <div id="diff-toggle">
+        <button class="diff-btn"        id="diff-easy"   onclick="setDifficulty('easy')">Easy</button>
+        <button class="diff-btn active" id="diff-medium" onclick="setDifficulty('medium')">Medium</button>
+        <button class="diff-btn"        id="diff-hard"   onclick="setDifficulty('hard')">Hard</button>
+        <button class="diff-btn gopro"  id="diff-gopro"  onclick="setDifficulty('gopro')">GoPro</button>
+      </div>
+      <div id="diff-desc">Balanced challenge</div>
+    </div>
+
     <div class="panel">
       <div class="panel-title">Status</div>
       <div id="status-text">White to move</div>
@@ -479,7 +367,9 @@
     <div class="panel">
       <div class="panel-title">Actions</div>
       <button class="btn primary" onclick="restartGame()">&#8635; New Game</button>
-      <button class="btn" onclick="undoMove()" style="margin-top:8px;" id="undo-btn">&#8617; Undo Move</button>
+      <button class="btn" onclick="undoMove()" style="margin-top:8px;">&#8617; Undo Move</button>
+      <button class="btn" id="flip-btn" onclick="toggleFlip()" style="margin-top:8px; display:none;">&#8645; Play as Black</button>
+      <div id="playing-as">Playing as: <span id="playing-as-color">White</span></div>
     </div>
 
     <div class="panel">
@@ -511,26 +401,20 @@
   </div>
 </div>
 
-<!-- ============================================================
-     SECTION 3: GAME STATE & DATA STRUCTURES
-     ============================================================ -->
 <script>
 'use strict';
 
-// ── Piece type constants ──────────────────────────────────────
+// ── Piece constants ───────────────────────────────────────────
 const W='w', B='b';
 const PAWN='P', ROOK='R', KNIGHT='N', BISHOP='Bi', QUEEN='Q', KING='K';
 
-// Unicode chess glyphs: GLYPH[color][type]
 const GLYPH = {
   w: { P:'&#9817;', R:'&#9814;', N:'&#9816;', Bi:'&#9815;', Q:'&#9813;', K:'&#9812;' },
   b: { P:'&#9823;', R:'&#9820;', N:'&#9822;', Bi:'&#9821;', Q:'&#9819;', K:'&#9818;' }
 };
 
-// Material values for AI evaluation
 const PIECE_VAL = { P:100, N:320, Bi:330, R:500, Q:900, K:20000 };
 
-// Piece-square tables (index: 0=a8 corner, row-major, from White's POV)
 const PST = {
   P:  [ 0, 0, 0, 0, 0, 0, 0, 0,
        50,50,50,50,50,50,50,50,
@@ -582,7 +466,7 @@ const PST = {
         20, 30, 10,  0,  0, 10, 30, 20]
 };
 
-// ── Live game state ──────────────────────────────────────────
+// ── Game state ────────────────────────────────────────────────
 let board        = [];
 let turn         = W;
 let gameOver     = false;
@@ -597,12 +481,16 @@ let capturedByB  = [];
 let moveHistory  = [];
 let boardHistory = [];
 
-/** Creates a deep copy of an 8x8 board array */
-function cloneBoard(b) {
-  return b.map(row => row.map(sq => sq ? {...sq} : null));
-}
+// ── Flip board state ──────────────────────────────────────────
+// boardFlipped = true  → player plays as Black, board shown from Black's POV
+// humanColor   = which color the human controls in AI mode
+let boardFlipped = false;
+let humanColor   = W;
 
-/** Saves the full game state for undo functionality */
+/** Deep copy of 8x8 board */
+function cloneBoard(b) { return b.map(r => r.map(s => s ? {...s} : null)); }
+
+/** Full state snapshot for undo */
 function snapshot() {
   return {
     board: cloneBoard(board), turn,
@@ -614,23 +502,22 @@ function snapshot() {
   };
 }
 
-/** Restores a previously saved game state snapshot */
+/** Restore state from snapshot */
 function restore(s) {
   board=s.board; turn=s.turn; enPassant=s.enPassant;
   castleRights=s.castleRights; capturedByW=s.capturedByW;
   capturedByB=s.capturedByB; moveHistory=s.moveHistory; lastMove=s.lastMove;
 }
 
-// ── Board initialisation ─────────────────────────────────────
-/** Sets up the standard chess starting position */
+/** Standard starting position */
 function initBoard() {
-  const back = [ROOK,KNIGHT,BISHOP,QUEEN,KING,BISHOP,KNIGHT,ROOK];
-  board = Array.from({length:8}, ()=>Array(8).fill(null));
-  for (let c=0;c<8;c++) {
-    board[0][c] = {color:B, type:back[c]};
-    board[1][c] = {color:B, type:PAWN};
-    board[6][c] = {color:W, type:PAWN};
-    board[7][c] = {color:W, type:back[c]};
+  const back=[ROOK,KNIGHT,BISHOP,QUEEN,KING,BISHOP,KNIGHT,ROOK];
+  board=Array.from({length:8},()=>Array(8).fill(null));
+  for(let c=0;c<8;c++){
+    board[0][c]={color:B,type:back[c]};
+    board[1][c]={color:B,type:PAWN};
+    board[6][c]={color:W,type:PAWN};
+    board[7][c]={color:W,type:back[c]};
   }
   turn=W; gameOver=false; selected=null; legalMoves=[];
   lastMove=null; enPassant=null;
@@ -638,41 +525,28 @@ function initBoard() {
   capturedByW=[]; capturedByB=[]; moveHistory=[]; boardHistory=[];
 }
 
-// ============================================================
-// SECTION 4: MOVE GENERATION & FULL RULE VALIDATION
-// ============================================================
-
-/** Returns the opposite color */
-const opp = c => c===W ? B : W;
-
-/** Returns true if [r,c] is a valid board square */
+// ── Move generation & validation ─────────────────────────────
+const opp = c => c===W?B:W;
 const inBounds = (r,c) => r>=0&&r<8&&c>=0&&c<8;
 
-/**
- * Generates pseudo-legal moves for the piece at board[r][c].
- * Does not filter for self-check. Handles castling flags as hints.
- */
+/** Pseudo-legal moves for piece at board[r][c] */
 function pseudoMoves(b, r, c, ep, cr) {
   const piece=b[r][c];
-  if(!piece) return [];
+  if(!piece)return[];
   const {color,type}=piece;
   const moves=[];
-
   const push=(dr,dc)=>{if(inBounds(r+dr,c+dc))moves.push({r:r+dr,c:c+dc});};
   const slide=(dirs)=>{
     for(const[dr,dc]of dirs){
       let nr=r+dr,nc=c+dc;
       while(inBounds(nr,nc)){
         if(b[nr][nc]){if(b[nr][nc].color!==color)moves.push({r:nr,c:nc});break;}
-        moves.push({r:nr,c:nc});
-        nr+=dr;nc+=dc;
+        moves.push({r:nr,c:nc});nr+=dr;nc+=dc;
       }
     }
   };
-
   if(type===PAWN){
-    const dir=color===W?-1:1;
-    const sr =color===W?6:1;
+    const dir=color===W?-1:1, sr=color===W?6:1;
     if(inBounds(r+dir,c)&&!b[r+dir][c]){
       moves.push({r:r+dir,c});
       if(r===sr&&!b[r+2*dir][c])moves.push({r:r+2*dir,c});
@@ -685,110 +559,85 @@ function pseudoMoves(b, r, c, ep, cr) {
   } else if(type===KNIGHT){
     for(const[dr,dc]of[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]])
       if(inBounds(r+dr,c+dc)&&b[r+dr][c+dc]?.color!==color)push(dr,dc);
-  } else if(type===BISHOP){
-    slide([[-1,-1],[-1,1],[1,-1],[1,1]]);
-  } else if(type===ROOK){
-    slide([[-1,0],[1,0],[0,-1],[0,1]]);
-  } else if(type===QUEEN){
-    slide([[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
+  } else if(type===BISHOP){ slide([[-1,-1],[-1,1],[1,-1],[1,1]]);
+  } else if(type===ROOK){   slide([[-1,0],[1,0],[0,-1],[0,1]]);
+  } else if(type===QUEEN){  slide([[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
   } else if(type===KING){
     for(const[dr,dc]of[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]])
       if(inBounds(r+dr,c+dc)&&b[r+dr][c+dc]?.color!==color)push(dr,dc);
-    // Castling hints (validated properly in legalMovesFor)
+    // Castling — full color check on rooks
     const backR=color===W?7:0;
     const crk=cr[color];
     if(r===backR&&c===4){
-      if(crk.K&&!b[backR][5]&&!b[backR][6]&&b[backR][7]?.type===ROOK)
+      const kr=b[backR][7], qr=b[backR][0];
+      if(crk.K&&!b[backR][5]&&!b[backR][6]&&kr&&kr.type===ROOK&&kr.color===color)
         moves.push({r:backR,c:6,castle:'K'});
-      if(crk.Q&&!b[backR][3]&&!b[backR][2]&&!b[backR][1]&&b[backR][0]?.type===ROOK)
+      if(crk.Q&&!b[backR][3]&&!b[backR][2]&&!b[backR][1]&&qr&&qr.type===ROOK&&qr.color===color)
         moves.push({r:backR,c:2,castle:'Q'});
     }
   }
   return moves;
 }
 
-/** Finds the king's position for the given color on board b */
-function findKing(b, color) {
+/** Find king position for color on board b */
+function findKing(b,color){
   for(let r=0;r<8;r++)for(let c=0;c<8;c++)
     if(b[r][c]?.color===color&&b[r][c]?.type===KING)return{r,c};
   return null;
 }
 
-/** Returns true if the given color's king is in check on board b */
-function isInCheck(b, color, ep, cr) {
+/** True if color's king is in check */
+function isInCheck(b,color,ep,cr){
   const king=findKing(b,color);
   if(!king)return true;
-  const o=opp(color);
-  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
-    if(b[r][c]?.color===o){
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++)
+    if(b[r][c]?.color===opp(color))
       if(pseudoMoves(b,r,c,ep,cr).some(m=>m.r===king.r&&m.c===king.c))return true;
-    }
-  }
   return false;
 }
 
-/** Returns true if square [r,c] is attacked by byColor on board b */
-function isAttacked(b, r, c, byColor, ep, cr) {
-  for(let rr=0;rr<8;rr++)for(let cc=0;cc<8;cc++){
+/** True if square [r,c] is attacked by byColor */
+function isAttacked(b,r,c,byColor,ep,cr){
+  for(let rr=0;rr<8;rr++)for(let cc=0;cc<8;cc++)
     if(b[rr][cc]?.color===byColor)
       if(pseudoMoves(b,rr,cc,ep,cr).some(m=>m.r===r&&m.c===c))return true;
-  }
   return false;
 }
 
-/**
- * Applies a move to board b (mutates it).
- * Handles: en passant, castling rook, pawn promotion.
- * Returns the captured piece or null.
- */
-function applyMove(b, from, to, promoType, ep) {
+/** Apply move to board b (mutates). Returns captured piece or null. */
+function applyMove(b,from,to,promoType,ep){
   const piece=b[from.r][from.c];
   let captured=b[to.r][to.c];
-
-  // En passant: remove the captured pawn sideways
   if(piece.type===PAWN&&ep&&to.r===ep.r&&to.c===ep.c&&!captured){
-    captured=b[from.r][to.c];
-    b[from.r][to.c]=null;
+    captured=b[from.r][to.c]; b[from.r][to.c]=null;
   }
-
-  b[to.r][to.c]=piece;
-  b[from.r][from.c]=null;
-
-  // Castling: relocate the rook
+  b[to.r][to.c]=piece; b[from.r][from.c]=null;
   if(piece.type===KING&&Math.abs(to.c-from.c)===2){
     if(to.c===6){b[from.r][5]=b[from.r][7];b[from.r][7]=null;}
     else        {b[from.r][3]=b[from.r][0];b[from.r][0]=null;}
   }
-
-  // Pawn promotion
   if(piece.type===PAWN&&(to.r===0||to.r===7))
     b[to.r][to.c]={color:piece.color,type:promoType||QUEEN};
-
   return captured;
 }
 
-/**
- * Returns all fully legal moves for the piece at [r,c] on the live board.
- * Castling moves are validated to ensure the king never passes through check.
- */
-function legalMovesFor(r, c) {
+/** Fully legal moves for piece at [r,c] on live board */
+function legalMovesFor(r,c){
   const piece=board[r][c];
   if(!piece)return[];
   const pseudo=pseudoMoves(board,r,c,enPassant,castleRights);
   const legal=[];
   for(const to of pseudo){
-    // Extra castling path safety check
     if(piece.type===KING&&Math.abs(to.c-c)===2){
       const step=to.c>c?1:-1;
       let safe=true;
-      for(let sq=c;sq!==to.c+step;sq+=step){
+      for(let sq=c;safe&&sq!==(to.c+step);sq+=step){
         const tb=cloneBoard(board);
-        tb[r][sq]=piece;tb[r][c]=null;
-        if(isAttacked(tb,r,sq,opp(piece.color),enPassant,castleRights)){safe=false;break;}
+        tb[r][sq]=piece; if(sq!==c)tb[r][c]=null;
+        if(isAttacked(tb,r,sq,opp(piece.color),enPassant,castleRights))safe=false;
       }
       if(!safe)continue;
     }
-    // Simulate and verify no self-check
     const tb=cloneBoard(board);
     applyMove(tb,{r,c},to,QUEEN,enPassant);
     if(!isInCheck(tb,piece.color,null,castleRights))legal.push(to);
@@ -796,280 +645,282 @@ function legalMovesFor(r, c) {
   return legal;
 }
 
-/** Returns true if the given color has at least one legal move */
-function hasLegalMoves(color) {
+/** True if color has at least one legal move */
+function hasLegalMoves(color){
   for(let r=0;r<8;r++)for(let c=0;c<8;c++)
     if(board[r][c]?.color===color&&legalMovesFor(r,c).length>0)return true;
   return false;
 }
 
-/**
- * Returns algebraic notation for a move.
- * Handles castling, captures, promotion, and check/checkmate suffixes.
- */
-function toAlgebraic(from, to, piece, captured, isCheck, isMate, promoType, isCastle) {
+/** Algebraic notation for a move */
+function toAlgebraic(from,to,piece,captured,isCheck,isMate,promoType,isCastle){
   if(isCastle==='K')return isMate?'O-O#':isCheck?'O-O+':'O-O';
   if(isCastle==='Q')return isMate?'O-O-O#':isCheck?'O-O-O+':'O-O-O';
-  const f='abcdefgh', r='87654321';
+  const f='abcdefgh',rr='87654321';
   let s='';
-  if(piece.type!==PAWN) s+=piece.type===BISHOP?'B':piece.type;
-  else if(captured)     s+=f[from.c];
+  if(piece.type!==PAWN)s+=piece.type===BISHOP?'B':piece.type;
+  else if(captured)s+=f[from.c];
   if(captured)s+='x';
-  s+=f[to.c]+r[to.r];
-  if(piece.type===PAWN&&(to.r===0||to.r===7))
-    s+='='+(promoType===BISHOP?'B':promoType);
+  s+=f[to.c]+rr[to.r];
+  if(piece.type===PAWN&&(to.r===0||to.r===7))s+='='+(promoType===BISHOP?'B':promoType);
   if(isMate)s+='#';else if(isCheck)s+='+';
   return s;
 }
 
-// ============================================================
-// SECTION 5: AI ENGINE — Minimax + Alpha-Beta + PST Evaluation
-// ============================================================
+// ── AI ENGINE ─────────────────────────────────────────────────
 
-/**
- * Evaluates board position as a score from White's perspective.
- * Uses material value plus piece-square table bonuses.
- */
-function evaluate(b) {
-  let score=0;
+const DIFFICULTY={
+  easy:   {depth:1,noise:80, pool:120,blunder:0.25},
+  medium: {depth:2,noise:30, pool:80, blunder:0.08},
+  hard:   {depth:3,noise:0,  pool:50, blunder:0   },
+  gopro:  {depth:4,noise:0,  pool:25, blunder:0   },
+};
+let aiDifficulty='medium';
+
+const PERSONALITIES=['aggressive','positional','solid'];
+let aiPersonality='solid';
+
+/** Pick a fresh random AI personality each game */
+function randomisePersonality(){
+  aiPersonality=PERSONALITIES[Math.floor(Math.random()*PERSONALITIES.length)];
+}
+
+const OPENING_BOOK={
+  'e4':[
+    {from:{r:1,c:4},to:{r:3,c:4}}, // e5 — Open Game
+    {from:{r:1,c:2},to:{r:3,c:2}}, // c5 — Sicilian
+    {from:{r:1,c:4},to:{r:2,c:4}}, // e6 — French
+    {from:{r:1,c:2},to:{r:2,c:2}}, // c6 — Caro-Kann
+    {from:{r:1,c:3},to:{r:2,c:3}}, // d6 — Pirc/Modern
+    {from:{r:0,c:6},to:{r:2,c:5}}, // Nf6 — Alekhine
+    {from:{r:1,c:6},to:{r:2,c:6}}, // g6 — Modern
+  ],
+  'd4':[
+    {from:{r:1,c:3},to:{r:3,c:3}}, // d5 — QGD
+    {from:{r:0,c:6},to:{r:2,c:5}}, // Nf6 — Indian
+    {from:{r:1,c:5},to:{r:2,c:5}}, // f5 — Dutch
+    {from:{r:1,c:3},to:{r:2,c:3}}, // d6 — KID setup
+    {from:{r:1,c:2},to:{r:3,c:2}}, // c5 — Benoni
+    {from:{r:1,c:4},to:{r:2,c:4}}, // e6 — Nimzo/QGD
+  ],
+  'f3':[
+    {from:{r:0,c:6},to:{r:2,c:5}},
+    {from:{r:1,c:3},to:{r:3,c:3}},
+    {from:{r:1,c:2},to:{r:3,c:2}},
+    {from:{r:1,c:4},to:{r:3,c:4}},
+    {from:{r:1,c:6},to:{r:2,c:6}},
+  ],
+  'c4':[
+    {from:{r:1,c:4},to:{r:3,c:4}}, // e5 — Reversed Sicilian
+    {from:{r:0,c:6},to:{r:2,c:5}}, // Nf6
+    {from:{r:1,c:2},to:{r:3,c:2}}, // c5 — Symmetrical
+    {from:{r:1,c:3},to:{r:3,c:3}}, // d5
+    {from:{r:1,c:6},to:{r:2,c:6}}, // g6 — KID
+  ],
+  'g3':[{from:{r:1,c:3},to:{r:3,c:3}},{from:{r:0,c:6},to:{r:2,c:5}},{from:{r:1,c:4},to:{r:3,c:4}}],
+  'b3':[{from:{r:1,c:4},to:{r:3,c:4}},{from:{r:1,c:3},to:{r:3,c:3}},{from:{r:0,c:6},to:{r:2,c:5}}],
+  'f4':[{from:{r:1,c:3},to:{r:3,c:3}},{from:{r:1,c:4},to:{r:3,c:4}},{from:{r:0,c:6},to:{r:2,c:5}}],
+  'f6':[{from:{r:1,c:3},to:{r:2,c:3}},{from:{r:0,c:1},to:{r:2,c:2}},{from:{r:1,c:4},to:{r:2,c:4}}],
+  'd5':[{from:{r:1,c:4},to:{r:2,c:4}},{from:{r:0,c:6},to:{r:2,c:5}},{from:{r:0,c:1},to:{r:2,c:2}}],
+};
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  return arr;
+}
+
+function pieceCount(b){let n=0;for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(b[r][c])n++;return n;}
+
+/** Static evaluation — material + PST + personality bias */
+function evaluate(b){
+  let score=0,wB=0,bB=0;
   for(let r=0;r<8;r++)for(let c=0;c<8;c++){
-    const p=b[r][c];
-    if(!p)continue;
+    const p=b[r][c]; if(!p)continue;
     const idx=p.color===W?r*8+c:(7-r)*8+c;
     const table=PST[p.type]||PST.K;
-    const val=PIECE_VAL[p.type]+(table[idx]||0);
+    let val=PIECE_VAL[p.type]+(table[idx]||0);
+    if(aiPersonality==='aggressive'){
+      if(p.color===B&&r>=4)val+=8;
+      if(p.type===ROOK){let open=true;for(let rr=0;rr<8;rr++)if(b[rr][c]?.type===PAWN)open=false;if(open)val+=15;}
+    } else if(aiPersonality==='positional'){
+      if(p.type===PAWN&&(c===3||c===4)&&r>=3&&r<=5)val+=12;
+      if(p.type===BISHOP){if(p.color===W)wB++;else bB++;}
+    } else {
+      if((p.type===KNIGHT||p.type===BISHOP)&&p.color===B&&r!==0)val+=6;
+      if((p.type===KNIGHT||p.type===BISHOP)&&p.color===W&&r!==7)val+=6;
+    }
     score+=p.color===W?val:-val;
   }
+  const bp=aiPersonality==='positional'?40:20;
+  if(wB>=2)score+=bp; if(bB>=2)score-=bp;
   return score;
 }
 
-/** Generates all legal moves for color on board b with given ep and cr */
-function allLegalMoves(b, color, ep, cr) {
+/** All legal moves for color on board b */
+function allLegalMoves(b,color,ep,cr){
   const moves=[];
   for(let r=0;r<8;r++)for(let c=0;c<8;c++){
     if(b[r][c]?.color!==color)continue;
-    const pseudo=pseudoMoves(b,r,c,ep,cr);
-    for(const to of pseudo){
+    for(const to of pseudoMoves(b,r,c,ep,cr)){
       if(b[r][c].type===KING&&Math.abs(to.c-c)===2){
-        const step=to.c>c?1:-1;
-        let safe=true;
-        for(let sq=c;sq!==to.c+step;sq+=step){
-          const tb=cloneBoard(b);tb[r][sq]=b[r][c];tb[r][c]=null;
-          if(isAttacked(tb,r,sq,opp(color),ep,cr)){safe=false;break;}
+        const step=to.c>c?1:-1;let safe=true;
+        for(let sq=c;safe&&sq!==(to.c+step);sq+=step){
+          const tb=cloneBoard(b);tb[r][sq]=b[r][c];if(sq!==c)tb[r][c]=null;
+          if(isAttacked(tb,r,sq,opp(color),ep,cr))safe=false;
         }
         if(!safe)continue;
       }
-      const tb=cloneBoard(b);
-      applyMove(tb,{r,c},to,QUEEN,ep);
+      const tb=cloneBoard(b);applyMove(tb,{r,c},to,QUEEN,ep);
       if(!isInCheck(tb,color,null,cr))moves.push({from:{r,c},to});
     }
   }
   return moves;
 }
 
-/** Updates castleRights after a move — returns a new object */
-function updateCR(cr, from, piece) {
+function updateCR(cr,from,piece){
   const n=JSON.parse(JSON.stringify(cr));
   if(piece.type===KING){n[piece.color].K=false;n[piece.color].Q=false;}
-  if(piece.type===ROOK){
-    const br=piece.color===W?7:0;
-    if(from.r===br&&from.c===7)n[piece.color].K=false;
-    if(from.r===br&&from.c===0)n[piece.color].Q=false;
-  }
+  if(piece.type===ROOK){const br=piece.color===W?7:0;if(from.r===br&&from.c===7)n[piece.color].K=false;if(from.r===br&&from.c===0)n[piece.color].Q=false;}
   return n;
 }
-
-/** Returns the new en-passant target square after a pawn double push, or null */
-function updateEP(from, to, piece) {
-  if(piece.type===PAWN&&Math.abs(to.r-from.r)===2)
-    return{r:(from.r+to.r)/2,c:from.c};
+function updateEP(from,to,piece){
+  if(piece.type===PAWN&&Math.abs(to.r-from.r)===2)return{r:(from.r+to.r)/2,c:from.c};
   return null;
 }
 
-/**
- * Minimax search with alpha-beta pruning (depth 3 by default).
- * Returns best evaluation score for the maximising player (White).
- */
-function minimax(b, depth, alpha, beta, maximizing, ep, cr) {
-  if(depth===0)return evaluate(b);
+/** Quiescence search — captures & promotions only, prevents horizon effect */
+function quiescence(b,alpha,beta,maximizing,ep,cr,qdepth){
+  const sp=evaluate(b);
+  if(qdepth<=0)return sp;
+  if(maximizing){if(sp>=beta)return beta;alpha=Math.max(alpha,sp);}
+  else{if(sp<=alpha)return alpha;beta=Math.min(beta,sp);}
+  const color=maximizing?W:B;
+  const caps=allLegalMoves(b,color,ep,cr).filter(({from,to})=>
+    b[to.r][to.c]!==null||(b[from.r][from.c]?.type===PAWN&&(to.r===0||to.r===7)));
+  if(maximizing){
+    let best=sp;
+    for(const{from,to}of caps){const tb=cloneBoard(b);const p=tb[from.r][from.c];const ncr=updateCR(cr,from,p);const nep=updateEP(from,to,p);applyMove(tb,from,to,QUEEN,ep);best=Math.max(best,quiescence(tb,alpha,beta,false,nep,ncr,qdepth-1));alpha=Math.max(alpha,best);if(beta<=alpha)break;}
+    return best;
+  } else {
+    let best=sp;
+    for(const{from,to}of caps){const tb=cloneBoard(b);const p=tb[from.r][from.c];const ncr=updateCR(cr,from,p);const nep=updateEP(from,to,p);applyMove(tb,from,to,QUEEN,ep);best=Math.min(best,quiescence(tb,alpha,beta,true,nep,ncr,qdepth-1));beta=Math.min(beta,best);if(beta<=alpha)break;}
+    return best;
+  }
+}
+
+/** Minimax with alpha-beta; quiescence at leaves for Hard/GoPro */
+function minimax(b,depth,alpha,beta,maximizing,ep,cr,useQ){
+  if(depth===0)return useQ?quiescence(b,alpha,beta,maximizing,ep,cr,4):evaluate(b);
   const color=maximizing?W:B;
   const moves=allLegalMoves(b,color,ep,cr);
-  if(moves.length===0)
-    return isInCheck(b,color,ep,cr)?(maximizing?-Infinity:Infinity):0;
-
+  if(!moves.length)return isInCheck(b,color,ep,cr)?(maximizing?-Infinity:Infinity):0;
   if(maximizing){
     let best=-Infinity;
-    for(const{from,to}of moves){
-      const tb=cloneBoard(b);const piece=tb[from.r][from.c];
-      const ncr=updateCR(cr,from,piece);const nep=updateEP(from,to,piece);
-      applyMove(tb,from,to,QUEEN,ep);
-      best=Math.max(best,minimax(tb,depth-1,alpha,beta,false,nep,ncr));
-      alpha=Math.max(alpha,best);if(beta<=alpha)break;
-    }
+    for(const{from,to}of moves){const tb=cloneBoard(b);const p=tb[from.r][from.c];const ncr=updateCR(cr,from,p);const nep=updateEP(from,to,p);applyMove(tb,from,to,QUEEN,ep);best=Math.max(best,minimax(tb,depth-1,alpha,beta,false,nep,ncr,useQ));alpha=Math.max(alpha,best);if(beta<=alpha)break;}
     return best;
   } else {
     let best=Infinity;
-    for(const{from,to}of moves){
-      const tb=cloneBoard(b);const piece=tb[from.r][from.c];
-      const ncr=updateCR(cr,from,piece);const nep=updateEP(from,to,piece);
-      applyMove(tb,from,to,QUEEN,ep);
-      best=Math.min(best,minimax(tb,depth-1,alpha,beta,true,nep,ncr));
-      beta=Math.min(beta,best);if(beta<=alpha)break;
-    }
+    for(const{from,to}of moves){const tb=cloneBoard(b);const p=tb[from.r][from.c];const ncr=updateCR(cr,from,p);const nep=updateEP(from,to,p);applyMove(tb,from,to,QUEEN,ep);best=Math.min(best,minimax(tb,depth-1,alpha,beta,true,nep,ncr,useQ));beta=Math.min(beta,best);if(beta<=alpha)break;}
     return best;
   }
 }
 
-// ── Opening book: common Black responses keyed by move number ──
-// Each entry is an array of {from,to} candidates. One is picked randomly.
-// Indexed by White's last move in algebraic form (to-square), mapping to Black reply pools.
-const OPENING_BOOK = {
-  // Responses to 1.e4
-  'e4': [
-    {from:{r:1,c:4},to:{r:3,c:4}}, // e5   — Open game
-    {from:{r:1,c:2},to:{r:3,c:2}}, // c5   — Sicilian
-    {from:{r:1,c:4},to:{r:2,c:4}}, // e6   — French
-    {from:{r:1,c:2},to:{r:2,c:2}}, // c6   — Caro-Kann
-  ],
-  // Responses to 1.d4
-  'd4': [
-    {from:{r:1,c:3},to:{r:3,c:3}}, // d5   — Queen's pawn
-    {from:{r:1,c:6},to:{r:2,c:6}}, // Nf6  — Indian systems
-    {from:{r:1,c:5},to:{r:2,c:5}}, // f5   — Dutch
-    {from:{r:1,c:3},to:{r:2,c:3}}, // d6   — King's Indian setup
-  ],
-  // Responses to 1.Nf3
-  'f3': [
-    {from:{r:1,c:6},to:{r:2,c:6}},
-    {from:{r:1,c:4},to:{r:3,c:4}},
-    {from:{r:1,c:3},to:{r:3,c:3}},
-  ],
-  // Responses to 1.c4 (English)
-  'c4': [
-    {from:{r:1,c:4},to:{r:3,c:4}},
-    {from:{r:1,c:6},to:{r:2,c:6}},
-    {from:{r:1,c:2},to:{r:3,c:2}},
-  ],
-};
-
 /**
- * Shuffles an array in place using Fisher-Yates.
- * Used to randomise move candidate ordering before search.
+ * Five-layer AI decision:
+ * 1. Opening book (first 4 moves, random real theory)
+ * 2. Blunder injection (Easy/Medium only)
+ * 3. Move order shuffle (alpha-beta variation)
+ * 4. Gaussian noise on scores (Easy/Medium)
+ * 5. Dynamic candidate pool (phase-scaled cp window, random pick)
  */
-function shuffle(arr) {
-  for(let i=arr.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]]=[arr[j],arr[i]];
-  }
-  return arr;
-}
+function findBestMove(){
+  const aiColor = opp(humanColor); // AI plays opposite of human
+  const cfg=DIFFICULTY[aiDifficulty];
+  const moves=allLegalMoves(board,aiColor,enPassant,castleRights);
+  if(!moves.length)return null;
 
-/**
- * Selects the best move for Black using minimax depth 3 with controlled randomness.
- *
- * Key design — three layers of variation:
- *
- * 1. OPENING BOOK (moves 1-2): On the very first and second Black moves, pull
- *    from a curated set of real opening responses and pick one at random.
- *    This means e4 e5 / e4 c5 / e4 e6 etc. are all possible, so the game
- *    feels different from the first move.
- *
- * 2. MOVE ORDERING SHUFFLE: Before the minimax search, the candidate list is
- *    shuffled. Alpha-beta pruning is order-sensitive — different orderings
- *    can produce different "equally best" moves rising to the top, because
- *    two moves with the same score are returned based on whichever was seen
- *    first in the search order.
- *
- * 3. CANDIDATE POOL (the core fix): After scoring all moves, instead of
- *    blindly returning the single top scorer, we collect ALL moves within
- *    POOL_THRESHOLD centipawns of the best score. Any move in that window
- *    is genuinely equivalent from the engine's perspective. We then pick
- *    randomly from that pool. A threshold of 30cp means "I'd be happy with
- *    any of these" — large enough to give variety, small enough that the AI
- *    never randomly blunders a piece.
- *
- * Result: undo + replay the same move → COM will draw from a different pool
- * ordering and potentially choose a different-but-equally-valid response.
- * The AI still plays strong chess; it just has genuine autonomy of expression.
- */
-function findBestMove() {
-  const moves=allLegalMoves(board,B,enPassant,castleRights);
-  if(moves.length===0)return null;
-
-  // ── Layer 1: Opening book for first two Black moves ──────────
-  const blackMoveCount=Math.floor(moveHistory.length/2); // how many full moves played
-  if(blackMoveCount<2&&moveHistory.length>0){
-    const lastWhiteMove=moveHistory[moveHistory.length-1]; // e.g. "e4", "d4", "Nf3"
-    // Extract destination square (last 2 chars of SAN for pawn moves, e.g. "e4")
-    const dest=lastWhiteMove.replace(/[+#]/g,'').slice(-2);
-    const bookMoves=OPENING_BOOK[dest];
-    if(bookMoves){
-      // Filter to only book moves that are actually legal in the current position
-      const legalBook=bookMoves.filter(bm=>
-        moves.some(m=>m.from.r===bm.from.r&&m.from.c===bm.from.c&&m.to.r===bm.to.r&&m.to.c===bm.to.c)
-      );
-      if(legalBook.length>0)
-        return legalBook[Math.floor(Math.random()*legalBook.length)];
+  // Layer 1: Opening book
+  const aiMoveCount=moveHistory.filter((_,i)=>i%2===(humanColor===W?1:0)).length;
+  if(aiMoveCount<4&&moveHistory.length>0){
+    const dest=moveHistory[moveHistory.length-1].replace(/[+#!?]/g,'').slice(-2);
+    const book=OPENING_BOOK[dest];
+    if(book){
+      const legal=book.filter(bm=>moves.some(m=>m.from.r===bm.from.r&&m.from.c===bm.from.c&&m.to.r===bm.to.r&&m.to.c===bm.to.c));
+      if(legal.length)return legal[Math.floor(Math.random()*legal.length)];
     }
   }
 
-  // ── Layer 2: Shuffle move order before search ─────────────────
-  // Alpha-beta is order-sensitive: shuffling means equal-scoring lines
-  // surface in a different order each call, naturally varying the pick.
+  // Layer 2: Blunder
+  if(cfg.blunder>0&&Math.random()<cfg.blunder)return moves[Math.floor(Math.random()*moves.length)];
+
+  // Layer 3: Shuffle
   shuffle(moves);
 
-  // ── Layer 3: Score all moves, then sample from the top pool ───
-  const POOL_THRESHOLD = 30; // centipawns — "equally good" window
+  // Layer 4 & 5: Score + noise + pool
+  const useQ=(aiDifficulty==='hard'||aiDifficulty==='gopro');
+  const pc=pieceCount(board);
+  const phaseScale=pc>24?1.4:pc>14?1.0:0.6;
+  const threshold=cfg.pool*phaseScale;
+  const maximizingAI=(aiColor===W); // AI maximises if it's White
+
   const scored=[];
   for(const mv of moves){
-    const tb=cloneBoard(board);const piece=tb[mv.from.r][mv.from.c];
-    const ncr=updateCR(castleRights,mv.from,piece);
-    const nep=updateEP(mv.from,mv.to,piece);
+    const tb=cloneBoard(board);const p=tb[mv.from.r][mv.from.c];
+    const ncr=updateCR(castleRights,mv.from,p);const nep=updateEP(mv.from,mv.to,p);
     applyMove(tb,mv.from,mv.to,QUEEN,enPassant);
-    const score=minimax(tb,2,-Infinity,Infinity,true,nep,ncr);
+    let score=minimax(tb,cfg.depth-1,-Infinity,Infinity,!maximizingAI,nep,ncr,useQ);
+    if(cfg.noise>0)score+=(Math.random()+Math.random()+Math.random()-1.5)*(cfg.noise*0.67);
     scored.push({mv,score});
   }
 
-  // Best (lowest) score for Black (minimising player)
-  const bestScore=Math.min(...scored.map(s=>s.score));
-
-  // Collect all moves within the threshold of the best score
-  const pool=scored.filter(s=>s.score<=bestScore+POOL_THRESHOLD);
-
-  // Pick randomly from the pool — genuine autonomy of choice
+  // AI picks best: if AI is Black → minimise; if AI is White → maximise
+  const bestScore=maximizingAI
+    ? Math.max(...scored.map(s=>s.score))
+    : Math.min(...scored.map(s=>s.score));
+  const pool=maximizingAI
+    ? scored.filter(s=>s.score>=bestScore-threshold)
+    : scored.filter(s=>s.score<=bestScore+threshold);
   return pool[Math.floor(Math.random()*pool.length)].mv;
 }
 
-// ============================================================
-// SECTION 6: UI RENDERING & EVENT HANDLERS
-// ============================================================
+// ── UI RENDERING ──────────────────────────────────────────────
 
-/** Renders coordinate labels (files a-h, ranks 1-8) around the board */
-function renderLabels() {
+/**
+ * Converts a board [row,col] to a display [row,col] accounting for flip.
+ * When flipped: row 0 displays at bottom, col 0 at right.
+ */
+function displayRC(r,c){ return boardFlipped?{r:7-r,c:7-c}:{r,c}; }
+function boardRC(dispR,dispC){ return boardFlipped?{r:7-dispR,c:7-dispC}:{r:dispR,c:dispC}; }
+
+/** Renders coordinate labels — reversed when board is flipped */
+function renderLabels(){
   const files='abcdefgh', ranks='87654321';
+  const df = boardFlipped?[...files].reverse():files.split('');
+  const dr = boardFlipped?[...ranks].reverse():ranks.split('');
   ['file-labels-top','file-labels-bottom'].forEach(id=>{
     const el=document.getElementById(id);el.innerHTML='';
-    for(const f of files){const d=document.createElement('div');d.className='file-label';d.textContent=f;el.appendChild(d);}
+    for(const f of df){const d=document.createElement('div');d.className='file-label';d.textContent=f;el.appendChild(d);}
   });
   ['rank-labels-left','rank-labels-right'].forEach(id=>{
     const el=document.getElementById(id);el.innerHTML='';
-    for(const r of ranks){const d=document.createElement('div');d.className='coord-label';d.textContent=r;el.appendChild(d);}
+    for(const r of dr){const d=document.createElement('div');d.className='coord-label';d.textContent=r;el.appendChild(d);}
   });
 }
 
-/** Renders the entire chessboard with all highlights and piece glyphs */
-function renderBoard() {
+/** Renders the full board, respecting flip orientation */
+function renderBoard(){
   const el=document.getElementById('board');
   el.innerHTML='';
   const inChk=isInCheck(board,turn,enPassant,castleRights);
   const kingPos=inChk?findKing(board,turn):null;
   const lSet=new Set(legalMoves.map(m=>`${m.r},${m.c}`));
 
-  for(let r=0;r<8;r++){
-    for(let c=0;c<8;c++){
+  for(let dispR=0;dispR<8;dispR++){
+    for(let dispC=0;dispC<8;dispC++){
+      const {r,c}=boardRC(dispR,dispC);
       const sq=document.createElement('div');
-      sq.className=`sq ${(r+c)%2===0?'light':'dark'}`;
-      sq.dataset.r=r;sq.dataset.c=c;
+      sq.className=`sq ${(dispR+dispC)%2===0?'light':'dark'}`;
+      sq.dataset.r=r; sq.dataset.c=c;
 
       if(selected&&selected.r===r&&selected.c===c)sq.classList.add('selected');
       if(lastMove){
@@ -1077,27 +928,22 @@ function renderBoard() {
         if(lastMove.to.r===r&&lastMove.to.c===c)sq.classList.add('last-to');
       }
       if(kingPos&&kingPos.r===r&&kingPos.c===c)sq.classList.add('in-check');
-      if(lSet.has(`${r},${c}`)){
-        sq.classList.add('legal');
-        if(board[r][c])sq.classList.add('has-piece');
-      }
+      if(lSet.has(`${r},${c}`)){sq.classList.add('legal');if(board[r][c])sq.classList.add('has-piece');}
 
       if(board[r][c]){
-        const{color,type}=board[r][c];
+        const {color,type}=board[r][c];
         const span=document.createElement('span');
-        span.className='piece';
-        span.innerHTML=GLYPH[color][type];
+        span.className='piece'; span.innerHTML=GLYPH[color][type];
         sq.appendChild(span);
       }
-
       sq.addEventListener('click',()=>handleClick(r,c));
       el.appendChild(sq);
     }
   }
 }
 
-/** Updates the turn indicator dot and label text */
-function renderStatus() {
+/** Updates status panel */
+function renderStatus(){
   const dot=document.getElementById('turn-dot');
   const lbl=document.getElementById('turn-label');
   if(gameOver){dot.style.background='#555';lbl.textContent='Game over';return;}
@@ -1106,21 +952,19 @@ function renderStatus() {
   lbl.textContent=(turn===W?'White':'Black')+"'s turn";
 }
 
-/** Re-renders the scrollable move history panel */
-function renderHistory() {
+/** Updates move history panel */
+function renderHistory(){
   const el=document.getElementById('move-history');el.innerHTML='';
   for(let i=0;i<moveHistory.length;i+=2){
     const num=document.createElement('div');num.className='hist-num';num.textContent=(i/2+1)+'.';el.appendChild(num);
     const wm=document.createElement('div');wm.className='hist-move'+(i===moveHistory.length-1?' latest':'');wm.textContent=moveHistory[i]||'';el.appendChild(wm);
     const bm=document.createElement('div');bm.className='hist-move'+(i+1===moveHistory.length-1?' latest':'');bm.textContent=moveHistory[i+1]||'';el.appendChild(bm);
   }
-  const box=document.getElementById('history-box');box.scrollTop=box.scrollHeight;
+  document.getElementById('history-box').scrollTop=9999;
 }
 
-/** Updates captured piece displays with material advantage indicator */
-function renderCaptured() {
-  const byVal=a=>b=>-(PIECE_VAL[b.type]||0)+(PIECE_VAL[a.type]||0);
-  const glyphs=(arr,c)=>arr.sort((a,b)=>(PIECE_VAL[b.type]||0)-(PIECE_VAL[a.type]||0)).map(p=>{const sp=document.createElement('span');sp.innerHTML=GLYPH[p.color][p.type];return sp.textContent;}).join('');
+/** Updates captured pieces with material advantage */
+function renderCaptured(){
   const wScore=capturedByW.reduce((s,p)=>s+(PIECE_VAL[p.type]||0),0);
   const bScore=capturedByB.reduce((s,p)=>s+(PIECE_VAL[p.type]||0),0);
   const diff=wScore-bScore;
@@ -1130,36 +974,27 @@ function renderCaptured() {
     capturedByB.sort((a,b)=>(PIECE_VAL[b.type]||0)-(PIECE_VAL[a.type]||0)).map(p=>GLYPH[p.color][p.type]).join('')+(diff<0?`<span class="adv-label">+${-diff}</span>`:'');
 }
 
-/** Full UI re-render */
-function render() {
-  renderBoard();renderStatus();renderHistory();renderCaptured();
-}
+function render(){ renderLabels(); renderBoard(); renderStatus(); renderHistory(); renderCaptured(); }
 
-/** Handles a square click — selects pieces or executes moves */
-function handleClick(r, c) {
+/** Handle square click */
+function handleClick(r,c){
   if(gameOver)return;
-  if(gameMode==='ai'&&turn===B)return;
+  // In AI mode, block clicks when it's the AI's turn
+  if(gameMode==='ai'&&turn!==humanColor)return;
 
   if(selected){
     const mv=legalMoves.find(m=>m.r===r&&m.c===c);
     if(mv){executeMove(selected,mv);return;}
   }
-
   const piece=board[r][c];
   if(piece&&piece.color===turn){
-    selected={r,c};
-    legalMoves=legalMovesFor(r,c);
-  } else {
-    selected=null;legalMoves=[];
-  }
+    selected={r,c}; legalMoves=legalMovesFor(r,c);
+  } else { selected=null; legalMoves=[]; }
   render();
 }
 
-/**
- * Executes a player or AI move: updates all state, records history,
- * checks game-over conditions, and triggers AI response if needed.
- */
-function executeMove(from, to, promoType) {
+/** Execute a move — handles promotion modal, AI trigger */
+function executeMove(from,to,promoType){
   const piece=board[from.r][from.c];
   const isPromo=piece.type===PAWN&&(to.r===0||to.r===7);
   if(isPromo&&!promoType){showPromoModal(piece.color,from,to);return;}
@@ -1177,43 +1012,40 @@ function executeMove(from, to, promoType) {
   if(captured){if(turn===W)capturedByW.push(captured);else capturedByB.push(captured);}
 
   lastMove={from:{...from},to:{...to}};
-  selected=null;legalMoves=[];
-  turn=opp(turn);
+  selected=null; legalMoves=[]; turn=opp(turn);
 
   const inChk=isInCheck(board,turn,enPassant,castleRights);
   const hasM=hasLegalMoves(turn);
   if(!hasM){
     gameOver=true;
     document.getElementById('status-text').textContent=
-      inChk?`Checkmate! ${turn===W?'Black':'White'} wins! \uD83C\uDF89`:'Stalemate! It\'s a draw!';
+      inChk?`Checkmate! ${turn===W?'Black':'White'} wins! \uD83C\uDF89`:"Stalemate! It's a draw!";
   }
 
   const san=toAlgebraic(from,to,piece,captured||isEP,inChk&&hasM,inChk&&!hasM,promoType||QUEEN,isCastle);
   moveHistory.push(san);
   render();
 
-  if(!gameOver&&gameMode==='ai'&&turn===B){
+  if(!gameOver&&gameMode==='ai'&&turn!==humanColor){
     document.getElementById('ai-thinking').classList.add('show');
     setTimeout(doAIMove,180);
   }
 }
 
-/** Triggers the AI to compute and play its move */
-function doAIMove() {
+/** AI computes and plays its move */
+function doAIMove(){
   document.getElementById('ai-thinking').classList.remove('show');
   const mv=findBestMove();
   if(mv)executeMove(mv.from,mv.to);
 }
 
-/** Displays the pawn promotion piece selection modal */
-function showPromoModal(color, from, to) {
-  const pieces=[QUEEN,ROOK,BISHOP,KNIGHT];
+/** Pawn promotion picker modal */
+function showPromoModal(color,from,to){
   const choices=document.getElementById('promo-choices');
   choices.innerHTML='';
-  for(const type of pieces){
+  for(const type of[QUEEN,ROOK,BISHOP,KNIGHT]){
     const btn=document.createElement('div');
-    btn.className='promo-piece';
-    btn.innerHTML=GLYPH[color][type];
+    btn.className='promo-piece'; btn.innerHTML=GLYPH[color][type];
     btn.title=type===BISHOP?'Bishop':type;
     btn.addEventListener('click',()=>{
       document.getElementById('promo-overlay').classList.remove('show');
@@ -1224,42 +1056,87 @@ function showPromoModal(color, from, to) {
   document.getElementById('promo-overlay').classList.add('show');
 }
 
-/** Resets the entire game to starting position */
-function restartGame() {
+/** New game */
+function restartGame(){
   initBoard();
+  randomisePersonality();
   document.getElementById('status-text').textContent='White to move';
   document.getElementById('ai-thinking').classList.remove('show');
   document.getElementById('promo-overlay').classList.remove('show');
+  // If playing as Black, AI goes first
   render();
+  if(gameMode==='ai'&&humanColor===B){
+    document.getElementById('ai-thinking').classList.add('show');
+    setTimeout(doAIMove,400);
+  }
 }
 
-/**
- * Undoes the last move. In AI mode, reverses both the AI move
- * and the player's preceding move so it's always the player's turn.
- */
-function undoMove() {
-  if(boardHistory.length===0)return;
+/** Undo — reverses two moves in AI mode so human is always to move */
+function undoMove(){
+  if(!boardHistory.length)return;
   if(gameMode==='ai'&&boardHistory.length>=2){
     restore(boardHistory.pop());restore(boardHistory.pop());
-  } else {
-    restore(boardHistory.pop());
-  }
-  selected=null;legalMoves=[];gameOver=false;
+  } else { restore(boardHistory.pop()); }
+  selected=null; legalMoves=[]; gameOver=false;
   document.getElementById('ai-thinking').classList.remove('show');
   document.getElementById('status-text').textContent='';
   render();
 }
 
-/** Switches game mode and restarts */
-function setMode(mode) {
-  gameMode=mode;
-  document.getElementById('btn-pvp').classList.toggle('active',mode==='pvp');
-  document.getElementById('btn-ai').classList.toggle('active',mode==='ai');
+/** Toggle flip board — only in AI mode */
+function toggleFlip(){
+  boardFlipped=!boardFlipped;
+  humanColor=boardFlipped?B:W;
+  const btn=document.getElementById('flip-btn');
+  const paEl=document.getElementById('playing-as');
+  const paColor=document.getElementById('playing-as-color');
+  if(boardFlipped){
+    btn.textContent='⇅ Play as White';
+    btn.classList.add('flip-active');
+    paColor.textContent='Black';
+  } else {
+    btn.textContent='⇅ Play as Black';
+    btn.classList.remove('flip-active');
+    paColor.textContent='White';
+  }
   restartGame();
 }
 
-// ── Initialise ────────────────────────────────────────────────
-renderLabels();
+/** Set difficulty level */
+function setDifficulty(level){
+  aiDifficulty=level;
+  const descs={
+    easy:'Learning mode — breathe easy, mistakes happen',
+    medium:'Balanced challenge — solid but beatable',
+    hard:'Club level — punishes mistakes, tactical awareness',
+    gopro:'Maximum strength — full engine, no mercy'
+  };
+  document.getElementById('diff-desc').textContent=descs[level];
+  ['easy','medium','hard','gopro'].forEach(l=>
+    document.getElementById('diff-'+l).classList.toggle('active',l===level));
+  restartGame();
+}
+
+/** Switch game mode */
+function setMode(mode){
+  gameMode=mode;
+  document.getElementById('btn-pvp').classList.toggle('active',mode==='pvp');
+  document.getElementById('btn-ai').classList.toggle('active',mode==='ai');
+  // Show difficulty + flip controls only in AI mode
+  document.getElementById('difficulty-panel').classList.toggle('visible',mode==='ai');
+  const flipBtn=document.getElementById('flip-btn');
+  const paEl=document.getElementById('playing-as');
+  if(mode==='ai'){
+    flipBtn.style.display=''; paEl.classList.add('visible');
+  } else {
+    flipBtn.style.display='none'; paEl.classList.remove('visible');
+    // Reset to White on PvP
+    boardFlipped=false; humanColor=W;
+  }
+  restartGame();
+}
+
+// ── Boot ─────────────────────────────────────────────────────
 restartGame();
 </script>
 </body>
