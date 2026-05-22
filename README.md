@@ -1,6 +1,7 @@
 # ♟ OmniBarry ChessHub
 
-A fully playable, zero-dependency chess engine built entirely in vanilla HTML, CSS, and JavaScript. No frameworks. No build step. No server. One file.
+> A fully playable chess engine — vanilla HTML, CSS, and JavaScript.  
+> No frameworks. No libraries. No server. One file.
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Site-4a7c59?style=for-the-badge)](https://omnibarry-chesshub-now.vercel.app/)
 
@@ -11,97 +12,99 @@ A fully playable, zero-dependency chess engine built entirely in vanilla HTML, C
 
 ---
 
+## What This Is
+
+OmniBarry ChessHub is a complete, production-quality chess application built without a single dependency. No Chess.js. No Stockfish. No jQuery. No React. Every rule, every AI decision, every pixel — written from scratch in one HTML file.
+
+It is built to be played by anyone from a first-time beginner to a competitive club player, with a difficulty system that scales from forgiving to formidable.
+
+---
+
 ## Features
 
-### Game Rules — Full FIDE Compliance
-- ✅ Legal move validation (king cannot move into or remain in check)
-- ✅ Castling — kingside and queenside, with full path-safety enforcement
-- ✅ En passant capture
-- ✅ Pawn promotion with interactive piece-selection UI
-- ✅ Check, checkmate, and stalemate detection
+### Full FIDE Rule Enforcement
+- Legal move validation — king cannot move into or remain in check
+- Castling — kingside and queenside, with full path-safety enforcement (king cannot pass through or land on an attacked square)
+- En passant capture
+- Pawn promotion with interactive piece-selection UI
+- Check, checkmate, and stalemate detection
 
-### Gameplay
-- ♟ **Player vs Player** — local two-player mode on one device
-- **Player vs Computer** — built-in AI opponent
-- ↩ **Undo** — step back one move at any time (reverses both sides in AI mode)
-- **New Game** — instant restart without page reload
+### Game Modes
+- **Player vs Player** — local two-player on one device
+- **vs Computer** — built-in AI opponent with four difficulty levels
+- **Play as Black** — flip the board, AI opens as White
 
-### AI Engine
-- Minimax algorithm with alpha-beta pruning (depth 3)
-- Piece-square table positional evaluation
-- Opening book with real responses (Sicilian, French, Caro-Kann, Queen's Pawn, Dutch, and more)
-- Candidate pool sampling — AI draws from all equally-strong moves, not just the first found, producing genuine variation across repeated positions
-- Move order shuffling for additional line diversity
+### Difficulty Levels
+| Level | Behaviour | Audience |
+|---|---|---|
+| **Easy** | Depth 1, deliberate mistakes, high blunder rate | Beginners, children |
+| **Medium** | Depth 2, occasional oversights, noise injection | Casual players |
+| **Hard** | Depth 3 + quiescence, no gifts, tactical awareness | Club players |
+| **GoPro** | Depth 4 + full quiescence, maximum engine strength | Serious challengers |
+
+### AI Engine — How It Thinks
+
+The engine runs a **minimax tree search** with **alpha-beta pruning**, extended by **quiescence search** on Hard and GoPro to prevent scoring positions mid-exchange.
+
+**Evaluation:**
+- Material value (Pawn 100 → Queen 900 → King 20,000)
+- Piece-square table positional bonuses (centralised knights, active bishops, advanced pawns, king safety)
+- Personality bias — the AI draws one of three styles each game: aggressive, positional, or solid. Same strength, different character.
+
+**Five layers of genuine variation** (why the AI never plays the same game twice):
+1. **Opening book** — 20+ named openings (Sicilian, French, Caro-Kann, King's Indian, Dutch, Benoni, Alekhine, English, and more), chosen randomly per game
+2. **Blunder injection** — Easy and Medium have a difficulty-scaled probability of ignoring the engine entirely, simulating human oversight
+3. **Move order shuffle** — candidate list randomised before search; alpha-beta is order-sensitive, so equal lines surface differently each call
+4. **Gaussian noise** — Easy and Medium add noise to move scores before pooling, so equivalent moves don't score identically
+5. **Dynamic candidate pool** — all moves within a phase-scaled centipawn window of the best score are collected; one is chosen randomly. Opening phase: wider window. Endgame: tighter. The AI never deterministically locks onto a single move.
 
 ### UI & Experience
 - Legal move highlighting — dots for empty squares, rings for captures
 - Last-move highlight on both origin and destination squares
 - King square pulses red when in check
-- Scrollable algebraic move history
-- Captured pieces display with material advantage indicator
-- "Computer thinking" animation while AI calculates
-- Coordinate labels (a–h / 1–8) around the board
+- Scrollable algebraic move history (SAN notation)
+- Captured pieces display with live material advantage indicator
+- "Computer thinking" animation during AI calculation
+- Coordinate labels (a–h / 1–8), correct orientation on flip
+- Pawn promotion modal with piece selection
+
+### Flip Board
+Switch sides at any time in vs Computer mode. When playing as Black, the board renders from Black's perspective, coordinates reverse, and the AI opens as White automatically.
+
+### How to Castle
+Click your **king**. If castling is legal, a move dot will appear two squares toward the rook. Click it. The rook moves automatically. You never click the rook to castle.
+
+Castling is unavailable if: the king or that rook has previously moved, any square between them is occupied, or the king is in check, passes through check, or would land in check.
 
 ### Responsive Design
-- Fully playable on every screen size from 280px (Galaxy Fold) to 4K displays
-- Board-first layout — square size driven by viewport, nothing ever clips
-- Landscape orientation handled separately for phones rotated sideways
-- 44px minimum touch targets on all interactive elements (WCAG AA)
-- Sidebar reflows below the board on mobile, beside it on tablet and desktop
+- Playable on every screen from 280px (Galaxy Fold closed) to 4K
+- Board-first layout — `--sq` CSS variable drives all sizing
+- Landscape orientation handled with a dedicated breakpoint
+- Minimum 44px touch targets on all interactive elements (WCAG AA)
+- Sidebar reflows below board on mobile, beside it on tablet and desktop
 
 ---
 
-## How It Works
+## Architecture
 
-### Architecture
-
-The app is a single `pack.html` file with six internal sections:
+Single `pack.html` file. Six internal sections:
 
 | Section | Responsibility |
 |---|---|
-| HTML Markup | Board grid, coordinate labels, sidebar panels, promotion modal |
-| CSS Styles | Board theme, highlights, responsive layout system |
-| Game State | Board array, turn tracking, castling rights, en passant target |
-| Move Generation | Per-piece pseudo-legal moves + check filtering = fully legal moves |
-| AI Engine | Minimax + alpha-beta + PST evaluation + opening book |
+| HTML Markup | Board grid, coordinate labels, sidebar, promotion modal |
+| CSS Styles | Board theme, highlights, difficulty/flip UI, responsive layout |
+| Game State | Board array, turn, castling rights, en passant, flip state |
+| Move Generation | Pseudo-legal moves per piece + check filtering = fully legal |
+| AI Engine | Minimax + alpha-beta + quiescence + difficulty + personality |
 | UI & Events | DOM rendering, click handling, history, captured pieces |
-
-### AI — How the Computer Thinks
-
-The engine runs a **minimax tree search** 3 levels deep. At each node it:
-
-1. Generates all legal moves for the current side
-2. Simulates each move on a cloned board
-3. Recursively evaluates the opponent's best reply
-4. Scores positions using **material value + piece-square table bonuses**
-5. Uses **alpha-beta pruning** to discard branches that cannot improve the result
-
-**Scoring weights:**
-
-| Piece | Value |
-|---|---|
-| Pawn | 100 |
-| Knight | 320 |
-| Bishop | 330 |
-| Rook | 500 |
-| Queen | 900 |
-| King | 20,000 |
-
-Positional bonuses (piece-square tables) reward centralised knights, active bishops, connected rooks, advanced pawns, and penalise edge pieces and passive kings.
-
-**Why the AI varies its replies:**
-Rather than returning the single top-scoring move deterministically, the engine collects all moves within 30 centipawns of the best score and selects randomly from that pool. Combined with move-order shuffling and an opening book, this means the computer has genuine autonomy — undoing and replaying the same move will not always produce the same response.
 
 ---
 
 ## Running Locally
 
-No build step. No dependencies.
+Download `pack.html`. Open it in any modern browser. That is the entire setup.
 
-
-That is the entire setup process.
-
----
+No build step. No `npm install`. No config. No server.
 
 ---
 
@@ -119,36 +122,25 @@ That is the entire setup process.
 
 ## Roadmap
 
-- [ ] Difficulty levels (depth 1 / 3 / 5)
-- [ ] Board theme switcher (classic, green, blue, midnight)
-- [ ] Flip board (play as Black against AI)
-- [ ] Move timer / clock mode
+- [ ] Board theme switcher (Classic, Green, Midnight, Blue)
+- [ ] Move timer / clock mode (Blitz 5+0, Rapid 10+0)
 - [ ] PGN export of completed games
-- [ ] Puzzle mode
-- [ ] Roadmap suggestions further
-- [ ] Roadmap suggestions (since you listed some)
-- [ ] Depth levels (1/3/5) — huge for accessibility.
-- [ ] Flip board (play as Black).
-- [ ] Quiescence search (huge Elo gain for tactics).
-- [ ] Simple transposition table.
-- [ ] Adjustable time or iterative deepening;
-
-Depth levels (1/3/5) — huge for accessibility.
-Flip board (play as Black).
-Quiescence search (huge Elo gain for tactics).
-Simple transposition table.
-Adjustable time or iterative deepening.
+- [ ] Puzzle mode — tactical positions for beginner skill-building
+- [ ] Transposition table — faster depth-5 search with position memory
+- [ ] Adaptive difficulty — AI adjusts to how you play mid-session
+- [ ] Live spectator / share link for remote challenge mode
 
 ---
 
 ## License
 
-MIT — free to use, modify, and distribute. See [LICENSE](LICENSE) for details.
+MIT — free to use, modify, and distribute. See [LICENSE](LICENSE) for full terms.
 
 ---
 
 ## Author
 
-Built with precision and no shortcuts.  
-If you find a bug or want to contribute, open an issue or pull request.
-Andre Courage Aganmwonyi-Barry Osas---KING.
+**Andre Courage Aganmwonyi-Barry Osas**  
+Built with precision. No shortcuts. No libraries.
+
+> *"There are 1000 ways to win. The engine knows all of them."*
