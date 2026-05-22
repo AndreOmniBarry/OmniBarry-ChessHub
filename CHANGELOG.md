@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.1.0] — 2025
+## [1.3] — 2026
 
 ### Added
 - Opening book with real chess responses: Sicilian Defence, French Defence,
@@ -26,7 +26,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.0.0] — 2025
+## [1.2] — 2026
 
 ### Added
 - Complete chess engine in a single `index.html` file
@@ -45,3 +45,5 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Pawn promotion modal with piece selection
 - "Computer thinking" animation
 - Zero external dependencies
+
+```
