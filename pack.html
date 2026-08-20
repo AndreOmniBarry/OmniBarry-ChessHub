@@ -58,6 +58,47 @@
     --check-glow:   rgba(255,60,70,0.85);
 
     --sq: min(8.5vw, 74px);
+
+    /* ── Board skin (default: Void) — overridden per body[data-skin] ── */
+    --board-accent:     var(--cyan);
+    --board-accent-rgb: 34,231,255;
+    --board-light-grad: linear-gradient(155deg, var(--ice-1) 0%, var(--ice-2) 60%, #b7c2da 100%);
+    --board-dark-grad:  linear-gradient(155deg, var(--graphite-1) 0%, #171b29 55%, var(--graphite-2) 100%);
+    --board-frame-grad: linear-gradient(155deg, #3a4260 0%, #1a1e2c 40%, #05060a 100%);
+  }
+
+  /* ── Board skins — Void (default), Walnut, Emerald, Crimson, Synth ── */
+  body[data-skin="walnut"] {
+    --board-accent:     var(--gold);
+    --board-accent-rgb: 255,207,107;
+    --board-light-grad: linear-gradient(155deg, #f2ddb1 0%, #e3c793 55%, #cba066 100%);
+    --board-dark-grad:  linear-gradient(155deg, #7a4a26 0%, #5c341a 55%, #33190c 100%);
+    --board-frame-grad: linear-gradient(155deg, #4a2f1a 0%, #2a1810 45%, #140a05 100%);
+  }
+  body[data-skin="emerald"] {
+    --board-accent:     var(--green);
+    --board-accent-rgb: 55,226,154;
+    --board-light-grad: linear-gradient(155deg, #ecf5ec 0%, #cfe3d2 55%, #a2c4a9 100%);
+    --board-dark-grad:  linear-gradient(155deg, #0f4a35 0%, #0a3327 55%, #041c15 100%);
+    --board-frame-grad: linear-gradient(155deg, #1c3d2e 0%, #0d1f17 45%, #030a07 100%);
+  }
+  body[data-skin="crimson"] {
+    --board-accent:     var(--red);
+    --board-accent-rgb: 255,77,94;
+    --board-light-grad: linear-gradient(155deg, #e8d5d4 0%, #c9a3a0 55%, #9c6a67 100%);
+    --board-dark-grad:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.035) 0, rgba(255,255,255,0.035) 2px, transparent 2px, transparent 5px),
+      linear-gradient(155deg, #241418 0%, #150c0e 55%, #070405 100%);
+    --board-frame-grad:
+      repeating-linear-gradient(45deg, rgba(255,77,94,0.05) 0, rgba(255,77,94,0.05) 2px, transparent 2px, transparent 6px),
+      linear-gradient(155deg, #1c0e10 0%, #0d0607 45%, #030202 100%);
+  }
+  body[data-skin="synth"] {
+    --board-accent:     #ff3ec8;
+    --board-accent-rgb: 255,62,200;
+    --board-light-grad: linear-gradient(155deg, #ffd2f5 0%, #ef9ae0 55%, #c467c9 100%);
+    --board-dark-grad:  linear-gradient(155deg, #3a1a5c 0%, #241040 55%, #10082a 100%);
+    --board-frame-grad: linear-gradient(155deg, #2a1145 0%, #150a2e 45%, #050110 100%);
   }
 
   html, body { background: var(--bg-void); }
@@ -146,18 +187,24 @@
   #board-frame {
     padding: 10px;
     border-radius: 16px;
-    background: linear-gradient(155deg, #3a4260 0%, #1a1e2c 40%, #05060a 100%);
+    background: var(--board-frame-grad);
     box-shadow:
       0 0 0 1px rgba(255,255,255,0.06),
       0 20px 60px rgba(0,0,0,0.65),
-      0 0 70px rgba(34,231,255,0.06);
-    transition: box-shadow .4s ease;
+      0 0 70px rgba(var(--board-accent-rgb),0.08);
+    transition: box-shadow .4s ease, background .5s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  #board-frame::before {
+    content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 16px;
+    background: linear-gradient(165deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.03) 16%, transparent 30%);
   }
   #board-frame.thinking {
     box-shadow:
-      0 0 0 1px rgba(34,231,255,0.25),
+      0 0 0 1px rgba(var(--board-accent-rgb),0.28),
       0 20px 60px rgba(0,0,0,0.65),
-      0 0 90px rgba(34,231,255,0.22);
+      0 0 90px rgba(var(--board-accent-rgb),0.25);
     animation: framePulse 1.8s ease-in-out infinite;
   }
   @keyframes framePulse {
@@ -178,20 +225,21 @@
     width: var(--sq); height: var(--sq);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; position: relative; user-select: none;
-    transition: box-shadow .12s ease;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -2px 4px rgba(0,0,0,0.14);
+    transition: box-shadow .12s ease, background .5s ease;
   }
-  .sq.light { background: linear-gradient(155deg, var(--ice-1) 0%, var(--ice-2) 60%, #b7c2da 100%); }
-  .sq.dark  { background: linear-gradient(155deg, var(--graphite-1) 0%, #171b29 55%, var(--graphite-2) 100%); }
-  .sq:hover { box-shadow: inset 0 0 0 100px rgba(34,231,255,0.08); }
+  .sq.light { background: var(--board-light-grad); }
+  .sq.dark  { background: var(--board-dark-grad); }
+  .sq:hover { box-shadow: inset 0 0 0 100px rgba(var(--board-accent-rgb),0.10); }
 
   .sq.selected {
-    box-shadow: inset 0 0 0 3px var(--cyan), inset 0 0 0 100px rgba(34,231,255,0.16) !important;
+    box-shadow: inset 0 0 0 3px var(--board-accent), inset 0 0 0 100px rgba(var(--board-accent-rgb),0.18) !important;
   }
   .sq.last-from, .sq.last-to {
-    box-shadow: inset 0 0 0 100px var(--last-move) !important;
+    box-shadow: inset 0 0 0 100px rgba(var(--board-accent-rgb),0.28) !important;
   }
   .sq.selected.last-from, .sq.selected.last-to {
-    box-shadow: inset 0 0 0 3px var(--cyan), inset 0 0 0 100px rgba(59,130,246,0.28) !important;
+    box-shadow: inset 0 0 0 3px var(--board-accent), inset 0 0 0 100px rgba(var(--board-accent-rgb),0.36) !important;
   }
   .sq.in-check {
     box-shadow: inset 0 0 0 100px rgba(255,60,70,0.30), inset 0 0 22px 6px var(--check-glow) !important;
@@ -204,8 +252,8 @@
   .sq.legal::after {
     content: ''; position: absolute;
     width: 28%; height: 28%; border-radius: 50%;
-    background: var(--legal-dot);
-    box-shadow: 0 0 10px 2px rgba(34,231,255,0.55);
+    background: rgba(var(--board-accent-rgb),0.8);
+    box-shadow: 0 0 10px 2px rgba(var(--board-accent-rgb),0.55);
     pointer-events: none; z-index: 2;
   }
   .sq.legal.has-piece::after {
@@ -306,6 +354,25 @@
   #difficulty-panel { display: none; }
   #difficulty-panel.visible { display: block; }
 
+  /* ── Board skin picker ── */
+  .skin-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 6px; }
+  .skin-swatch {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 5px 2px 6px; border-radius: 9px; border: 1px solid var(--glass-border);
+    background: rgba(0,0,0,0.22); cursor: pointer; font-family: inherit;
+    transition: border-color .18s, background .18s, transform .1s, box-shadow .18s;
+  }
+  .skin-swatch:hover  { border-color: var(--glass-border2); background: rgba(255,255,255,0.06); }
+  .skin-swatch:active { transform: scale(0.94); }
+  .skin-swatch.active { border-color: var(--sw-accent, var(--cyan)); box-shadow: 0 0 12px rgba(var(--sw-accent-rgb, 34,231,255),0.4); }
+  .skin-preview {
+    display: block; width: 100%; aspect-ratio: 1; border-radius: 6px;
+    background: conic-gradient(var(--c1) 90deg, var(--c2) 90deg 180deg, var(--c1) 180deg 270deg, var(--c2) 270deg);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .skin-name { font-size: 9px; font-weight: 700; color: var(--text-dim); letter-spacing: .03em; text-transform: uppercase; }
+  .skin-swatch.active .skin-name { color: var(--sw-accent, var(--cyan)); }
+
   #playing-as { font-size: 11px; color: var(--text-dim); margin-top: 8px; display: none; }
   #playing-as.visible { display: block; }
   #playing-as span { color: var(--cyan); font-weight: 700; }
@@ -390,6 +457,7 @@
     #move-history { font-size: 10px; } .file-labels { margin-left: 17px; }
     .file-label, .coord-label { font-size: 9px; width: 10px; }
     .promo-piece { font-size: 36px; padding: 6px; } #promo-choices { gap: 6px; }
+    .skin-grid { gap: 4px; } .skin-name { font-size: 7px; } .skin-swatch { padding: 3px 1px 4px; }
   }
   @media (min-width: 360px) and (max-width: 479px) {
     :root { --sq: min(11vw, 46px); }
@@ -484,6 +552,32 @@
       <div id="mode-toggle">
         <button class="mode-btn active" id="btn-pvp" onclick="setMode('pvp')">Player vs Player</button>
         <button class="mode-btn"        id="btn-ai"  onclick="setMode('ai')">vs Computer</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Board Skin</div>
+      <div class="skin-grid" id="skin-grid">
+        <button class="skin-swatch active" data-skin="void" onclick="setSkin('void')" title="Void"
+          style="--c1:#eef1fb;--c2:#262c40;--sw-accent:#22e7ff;--sw-accent-rgb:34,231,255;">
+          <span class="skin-preview"></span><span class="skin-name">Void</span>
+        </button>
+        <button class="skin-swatch" data-skin="walnut" onclick="setSkin('walnut')" title="Walnut"
+          style="--c1:#f2ddb1;--c2:#5c341a;--sw-accent:#ffcf6b;--sw-accent-rgb:255,207,107;">
+          <span class="skin-preview"></span><span class="skin-name">Walnut</span>
+        </button>
+        <button class="skin-swatch" data-skin="emerald" onclick="setSkin('emerald')" title="Emerald"
+          style="--c1:#ecf5ec;--c2:#0a3327;--sw-accent:#37e29a;--sw-accent-rgb:55,226,154;">
+          <span class="skin-preview"></span><span class="skin-name">Emerald</span>
+        </button>
+        <button class="skin-swatch" data-skin="crimson" onclick="setSkin('crimson')" title="Crimson"
+          style="--c1:#e8d5d4;--c2:#150c0e;--sw-accent:#ff4d5e;--sw-accent-rgb:255,77,94;">
+          <span class="skin-preview"></span><span class="skin-name">Crimson</span>
+        </button>
+        <button class="skin-swatch" data-skin="synth" onclick="setSkin('synth')" title="Synth"
+          style="--c1:#ffd2f5;--c2:#241040;--sw-accent:#ff3ec8;--sw-accent-rgb:255,62,200;">
+          <span class="skin-preview"></span><span class="skin-name">Synth</span>
+        </button>
       </div>
     </div>
 
@@ -1805,7 +1899,19 @@ function setMode(mode){
   restartGame();
 }
 
+/** Apply a board skin and persist the choice. */
+const SKIN_KEY='obh_board_skin';
+function setSkin(name){
+  document.body.dataset.skin=name;
+  try{ localStorage.setItem(SKIN_KEY,name); }catch(e){}
+  document.querySelectorAll('.skin-swatch').forEach(el=>
+    el.classList.toggle('active', el.dataset.skin===name));
+}
+
 // ── Boot ─────────────────────────────────────────────────────
+let savedSkin='void';
+try{ savedSkin=localStorage.getItem(SKIN_KEY)||'void'; }catch(e){}
+setSkin(savedSkin);
 restartGame();
 </script>
 </body>
